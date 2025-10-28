@@ -33,7 +33,7 @@ module RegistersUnit_tb;
     
     // Inicialización para wavetrace
     initial begin
-        $dumpfile("RegistersUnit_tb.vcd");
+        $dumpfile("sim/RegistersUnit_tb.vcd");
         $dumpvars(0, RegistersUnit_tb);
     end
     

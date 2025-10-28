@@ -32,7 +32,7 @@ module ALU_tb;
 
     // Inicialización de la simulación - Wavetrace
     initial begin
-        $dumpfile("ALU_tb.vcd");    
+        $dumpfile("sim/ALU_tb.vcd");    
         $dumpvars(0, ALU_tb);   
     end
     
