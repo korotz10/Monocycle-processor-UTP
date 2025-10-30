@@ -7,7 +7,7 @@ module ProgramCounter(
     output logic signed [31:0] PCOut
 );
 
-    logic signed [31:0] pc_reg;
+    logic signed [31:0] pc_reg  = 0;
 
     assign PCOut = pc_reg;
 

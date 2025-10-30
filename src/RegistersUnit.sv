@@ -15,6 +15,10 @@ module RegistersUnit(
     logic signed [31:0] ru [31:0];
 
     initial begin
+        integer i;
+        for (i = 0; i < 32; i++) begin
+            ru[i] = 32'b0;    // inicializa todos los registros en 0
+        end
         ru[2] = 32'b1000000000;
     end
 
