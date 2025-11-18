@@ -17,7 +17,7 @@ module DataMemory #(
     always_comb begin
         if (DMWr) begin
             case (DMCtrl)
-                3'b110: begin  // SB
+                3'b000: begin  // SB
                     case (Address[1:0])
                         2'b00: mem[Address[31:2]][7:0]   = DataWr[7:0];
                         2'b01: mem[Address[31:2]][15:8]  = DataWr[7:0];
@@ -26,14 +26,14 @@ module DataMemory #(
                     endcase
                 end
 
-                3'b111: begin  // SH
+                3'b001: begin  // SH
                     case (Address[1:0])
                         2'b00: mem[Address[31:2]][15:0]  = DataWr[15:0];
                         2'b10: mem[Address[31:2]][31:16] = DataWr[15:0];
                     endcase
                 end
                 
-                3'b011: begin  // SW
+                3'b010: begin  // SW
                     mem[Address[31:2]] = DataWr;
                 end
             endcase
