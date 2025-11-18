@@ -18,6 +18,11 @@ module ImmGenerator_tb;
     logic signed [31:0] expected;
     integer errors = 0;
     integer tests = 0;
+
+    initial begin
+        $dumpfile("sim/ImmGenerator_tb.vcd");
+        $dumpvars(0, ImmGenerator_tb);
+    end
     
     // Task para verificar resultado
     task check_result(input string test_name, input logic signed [31:0] exp);

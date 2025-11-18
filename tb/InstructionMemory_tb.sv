@@ -16,6 +16,12 @@ module InstructionMemory_tb;
     logic [31:0] expected;
     integer errors = 0;
     integer tests = 0;
+
+    // Inicialización para wavetrace
+    initial begin
+        $dumpfile("sim/InstructionMemory_tb.vcd");
+        $dumpvars(0, InstructionMemory_tb);
+    end
     
     // Task para verificar resultado
     task check_result(input string test_name, input logic [31:0] exp);
