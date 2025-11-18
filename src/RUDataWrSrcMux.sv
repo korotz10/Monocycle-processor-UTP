@@ -11,7 +11,9 @@ module RUDataWrSrcMux(
             ru_wrdata = adder_result;
         else if (sel == 2'b01)
             ru_wrdata = data_mem_rd;
-        else
+        else if (sel == 2'b00)
             ru_wrdata = alu_result;
+        else
+            ru_wrdata = 32'b0; // Default case
     end
 endmodule
