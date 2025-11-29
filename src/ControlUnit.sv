@@ -76,7 +76,13 @@ module ControlUnit (
                 3'b010: ALUOp = 4'b0010; // SLTI
                 3'b011: ALUOp = 4'b0011; // SLTIU
                 3'b100: ALUOp = 4'b0100; // XORI
-                3'b101: ALUOp = 4'b0101; // SRLI/SRAI
+                3'b101: begin
+                    // SRLI vs SRAI: bit 30 de la instrucción (Funct7[5])
+                    if (Funct7[5] == 1'b0)
+                        ALUOp = 4'b0101; // SRLI
+                    else
+                        ALUOp = 4'b1101; // SRAI
+                end
                 3'b110: ALUOp = 4'b0110; // ORI
                 3'b111: ALUOp = 4'b0111; // ANDI
                 
@@ -119,8 +125,9 @@ module ControlUnit (
         // ============================================
         7'b1100011: begin
             RUWr = 0;
-            ALUASrc = 0;
-            ALUBSrc = 0;
+            ALUASrc = 1;
+            ALUBSrc = 1;
+            ALUOp = 4'b0000;
 
             ImmSrc = 3'b101; // B-type
 
@@ -142,6 +149,10 @@ module ControlUnit (
             RUDataWrSrc = 2'b10; // PC+4
             ImmSrc      = 3'b110; // J-type
             BrOp        = 5'b10000; // unconditional
+
+            ALUASrc = 1; // PC
+            ALUBSrc = 1; // immediate
+            ALUOp   = 4'b0000;
         end
 
         // ============================================
@@ -152,6 +163,10 @@ module ControlUnit (
             RUDataWrSrc = 2'b10; 
             ImmSrc      = 3'b000;
             BrOp        = 5'b10000;
+
+            ALUASrc = 0; // rs1
+            ALUBSrc = 1; // immediate
+            ALUOp   = 4'b0000;
         end
 
         // ============================================
