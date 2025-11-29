@@ -1,9 +1,9 @@
 module RegistersUnit(
 
     input logic clk,
-    input logic signed [4:0] rs1,
-    input logic signed [4:0] rs2,
-    input logic signed [4:0] rd,
+    input logic [4:0] rs1,
+    input logic [4:0] rs2,
+    input logic [4:0] rd,
 
     input logic signed [31:0] DataWR,
     input logic RUWr, // toggle
