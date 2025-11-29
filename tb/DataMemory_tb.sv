@@ -1,16 +1,27 @@
-`timescale 1ns/1ps
+`timescale 1ns / 1ps
 
 module DataMemory_tb;
 
-    // Señales del testbench
+    // Parámetros
+    parameter CLK_PERIOD = 10;  // 10ns = 100MHz
+    
+    // Señales del DUT
+    logic        clk;
     logic [31:0] Address;
     logic [31:0] DataWr;
     logic        DMWr;
     logic [2:0]  DMCtrl;
     logic [31:0] DataRd;
     
+    // Contadores de pruebas
+    integer tests = 0;
+    integer errors = 0;
+    
     // Instancia del módulo bajo prueba
-    DataMemory #(.ADDR_WIDTH(10)) uut (
+    DataMemory #(
+        .ADDR_WIDTH(10)
+    ) dut (
+        .clk(clk),
         .Address(Address),
         .DataWr(DataWr),
         .DMWr(DMWr),
@@ -18,179 +29,304 @@ module DataMemory_tb;
         .DataRd(DataRd)
     );
     
-    // Variables para verificación
-    logic [31:0] expected;
-    integer errors = 0;
-    integer tests = 0;
-
-    // Inicialización para wavetrace
+    // Generación del reloj
+    initial begin
+        clk = 0;
+        forever #(CLK_PERIOD/2) clk = ~clk;
+    end
+    
+    // Task para verificar resultados
+    task check_result(
+        input string test_name,
+        input logic [31:0] expected,
+        input logic [31:0] actual
+    );
+        tests++;
+        #1;
+        if (actual === expected) begin
+            $display("PASS: %s", test_name);
+        end else begin
+            $display("ERROR: %s", test_name);
+            $display("   Expected: 0x%h, Got: 0x%h", expected, actual);
+            errors++;
+        end
+    endtask
+    
+    // Proceso de prueba
     initial begin
         $dumpfile("sim/DataMemory_tb.vcd");
         $dumpvars(0, DataMemory_tb);
-    end
-    
-    // Task para verificar resultado
-    task check_result(input string test_name, input logic [31:0] exp);
-        tests++;
-        #1;
-        if (DataRd !== exp) begin
-            $display("ERROR: %s", test_name);
-            $display("   Address:  0x%h", Address);
-            $display("   DMCtrl:   0x%h (%03b)", DMCtrl, DMCtrl);
-            $display("   Expected: 0x%h (%0d)", exp, exp);
-            $display("   Got:      0x%h (%0d)", DataRd, DataRd);
-            errors++;
-        end else begin
-            $display("PASS: %s", test_name);
-            $display("   Address: 0x%h, DMCtrl: %03b, DataRd = 0x%h", Address, DMCtrl, DataRd);
-        end
-        $display("");
-    endtask
-    
-    initial begin
+        
         $display("\n========================================");
-        $display("  DataMemory Testbench");
+        $display("  DataMemory Testbench - RISC-V");
         $display("========================================\n");
         
-        // Inicializar señales
-        DMWr = 0;
-        Address = 0;
-        DataWr = 0;
-        DMCtrl = 0;
-        #10;
+        // Inicialización
+        Address = 32'h0;
+        DataWr  = 32'h0;
+        DMWr    = 1'b0;
+        DMCtrl  = 3'b0;
         
-        // ==================== PRUEBAS DE ESCRITURA Y LECTURA ====================
+        @(posedge clk);
+        #1;
         
-        // Test 1: SW (Store Word) - Escribir palabra completa
-        $display("--- Test 1: SW (Store Word) ---");
+        // ==================== STORE WORD ====================
+        $display("--- STORE WORD (SW) ---\n");
+        
         Address = 32'h00000000;
-        DataWr = 32'hDEADBEEF;
-        DMCtrl = 3'b011;  // SW
-        DMWr = 1;
-        #10;
-        DMWr = 0;
-        #10;
-        // Leer con LW
-        DMCtrl = 3'b010;  // LW
-        expected = 32'hDEADBEEF;
-        #10 check_result("Test 1: LW after SW", expected);
+        DataWr  = 32'hDEADBEEF;
+        DMWr    = 1'b1;
+        DMCtrl  = 3'b010;
         
-        // Test 2: SB (Store Byte) - Escribir byte en offset 0
-        $display("--- Test 2: SB (Store Byte) offset 0 ---");
+        @(posedge clk);
+        #1;
+        
+        DMWr = 1'b0;
+        DMCtrl = 3'b010;
+        #1;
+        check_result("SW: Write and read 0xDEADBEEF", 32'hDEADBEEF, DataRd);
+        
+        @(posedge clk);
+        #1;
+        
+        // ==================== STORE HALFWORD ====================
+        $display("\n--- STORE HALFWORD (SH) ---\n");
+        
+        // SH en offset 0
         Address = 32'h00000004;
-        DataWr = 32'h000000AB;
-        DMCtrl = 3'b110;  // SB
-        DMWr = 1;
-        #10;
-        DMWr = 0;
-        #10;
-        // Leer con LBU
-        Address = 32'h00000004;
-        DMCtrl = 3'b100;  // LBU
-        expected = 32'h000000AB;
-        #10 check_result("Test 2: LBU after SB at offset 0", expected);
+        DataWr  = 32'h0000CAFE;
+        DMWr    = 1'b1;
+        DMCtrl  = 3'b001;
         
-        // Test 3: SB (Store Byte) - Escribir byte en offset 1
-        $display("--- Test 3: SB (Store Byte) offset 1 ---");
-        Address = 32'h00000005;
-        DataWr = 32'h000000CD;
-        DMCtrl = 3'b110;  // SB
-        DMWr = 1;
-        #10;
-        DMWr = 0;
-        #10;
-        // Leer con LBU
-        Address = 32'h00000005;
-        DMCtrl = 3'b100;  // LBU
-        expected = 32'h000000CD;
-        #10 check_result("Test 3: LBU after SB at offset 1", expected);
+        @(posedge clk);
+        #1;
         
-        // Test 4: LB (Load Byte signed) - Byte negativo
-        $display("--- Test 4: LB (Load Byte signed) ---");
+        DMWr = 1'b0;
+        DMCtrl = 3'b001;
+        #1;
+        check_result("SH offset 0: LH sign-extend 0xCAFE", 32'hFFFFCAFE, DataRd);
+        
+        DMCtrl = 3'b101;
+        #1;
+        check_result("SH offset 0: LHU zero-extend 0xCAFE", 32'h0000CAFE, DataRd);
+        
+        @(posedge clk);
+        #1;
+        
+        // SH en offset 2
+        Address = 32'h00000006;
+        DataWr  = 32'h00001234;
+        DMWr    = 1'b1;
+        DMCtrl  = 3'b001;
+        
+        @(posedge clk);
+        #1;
+        
+        DMWr = 1'b0;
+        DMCtrl = 3'b101;
+        #1;
+        check_result("SH offset 2: LHU 0x1234", 32'h00001234, DataRd);
+        
+        @(posedge clk);
+        #1;
+        
+        // ==================== STORE BYTE ====================
+        $display("\n--- STORE BYTE (SB) ---\n");
+        
+        // Guardar bytes en offsets 0-3
+        for (int i = 0; i < 4; i++) begin
+            Address = 32'h00000008 + i;
+            DataWr  = 32'h000000A0 + i;
+            DMWr    = 1'b1;
+            DMCtrl  = 3'b000;
+            
+            @(posedge clk);
+            #1;
+        end
+        
+        // Verificar palabra completa
         Address = 32'h00000008;
-        DataWr = 32'h000000FF;  // -1 en complemento a 2
-        DMCtrl = 3'b110;  // SB
-        DMWr = 1;
-        #10;
-        DMWr = 0;
-        #10;
-        // Leer con LB (debe extender signo)
-        Address = 32'h00000008;
-        DMCtrl = 3'b000;  // LB
-        expected = 32'hFFFFFFFF;  // -1 extendido
-        #10 check_result("Test 4: LB signed extension", expected);
+        DMWr = 1'b0;
+        DMCtrl = 3'b010;
+        #1;
+        check_result("SB: Four bytes form 0xA3A2A1A0", 32'hA3A2A1A0, DataRd);
         
-        // Test 5: SH (Store Halfword) - Escribir halfword en offset 0
-        $display("--- Test 5: SH (Store Halfword) offset 0 ---");
+        @(posedge clk);
+        #1;
+        
+        // ==================== LOAD BYTE ====================
+        $display("\n--- LOAD BYTE (LB/LBU) ---\n");
+        
+        // Verificar cada offset con LB y LBU
+        for (int i = 0; i < 4; i++) begin
+            Address = 32'h00000008 + i;
+            DMWr = 1'b0;
+            
+            // LBU
+            DMCtrl = 3'b100;
+            #1;
+            check_result($sformatf("LBU offset %0d: 0x%h", i, 32'h000000A0 + i), 
+                        32'h000000A0 + i, DataRd);
+            
+            // LB (extensión de signo)
+            DMCtrl = 3'b000;
+            #1;
+            check_result($sformatf("LB offset %0d: 0x%h", i, 32'hFFFFFFA0 + i), 
+                        32'hFFFFFFA0 + i, DataRd);
+            
+            @(posedge clk);
+            #1;
+        end
+        
+        // ==================== LOAD BYTE SIGN EXTENSION ====================
+        $display("\n--- LOAD BYTE SIGN EXTENSION ---\n");
+        
+        // Byte negativo (0xFF = -1)
         Address = 32'h0000000C;
-        DataWr = 32'h00001234;
-        DMCtrl = 3'b111;  // SH
-        DMWr = 1;
-        #10;
-        DMWr = 0;
-        #10;
-        // Leer con LHU
-        Address = 32'h0000000C;
-        DMCtrl = 3'b101;  // LHU
-        expected = 32'h00001234;
-        #10 check_result("Test 5: LHU after SH at offset 0", expected);
+        DataWr  = 32'h000000FF;
+        DMWr    = 1'b1;
+        DMCtrl  = 3'b000;
         
-        // Test 6: SH (Store Halfword) - Escribir halfword en offset 2
-        $display("--- Test 6: SH (Store Halfword) offset 2 ---");
-        Address = 32'h0000000E;
-        DataWr = 32'h00005678;
-        DMCtrl = 3'b111;  // SH
-        DMWr = 1;
-        #10;
-        DMWr = 0;
-        #10;
-        // Leer con LHU
-        Address = 32'h0000000E;
-        DMCtrl = 3'b101;  // LHU
-        expected = 32'h00005678;
-        #10 check_result("Test 6: LHU after SH at offset 2", expected);
+        @(posedge clk);
+        #1;
         
-        // Test 7: LH (Load Halfword signed) - Halfword negativo
-        $display("--- Test 7: LH (Load Halfword signed) ---");
+        DMWr = 1'b0;
+        DMCtrl = 3'b000;
+        #1;
+        check_result("LB: Sign-extend 0xFF to 0xFFFFFFFF", 32'hFFFFFFFF, DataRd);
+        
+        DMCtrl = 3'b100;
+        #1;
+        check_result("LBU: Zero-extend 0xFF to 0x000000FF", 32'h000000FF, DataRd);
+        
+        @(posedge clk);
+        #1;
+        
+        // Byte positivo (0x7F = 127)
+        Address = 32'h0000000D;
+        DataWr  = 32'h0000007F;
+        DMWr    = 1'b1;
+        DMCtrl  = 3'b000;
+        
+        @(posedge clk);
+        #1;
+        
+        DMWr = 1'b0;
+        DMCtrl = 3'b000;
+        #1;
+        check_result("LB: Sign-extend 0x7F to 0x0000007F", 32'h0000007F, DataRd);
+        
+        @(posedge clk);
+        #1;
+        
+        // ==================== LOAD HALFWORD SIGN EXTENSION ====================
+        $display("\n--- LOAD HALFWORD SIGN EXTENSION ---\n");
+        
+        // Halfword negativo (0x8000 = -32768)
         Address = 32'h00000010;
-        DataWr = 32'h0000FFFF;  // -1 en 16 bits
-        DMCtrl = 3'b111;  // SH
-        DMWr = 1;
-        #10;
-        DMWr = 0;
-        #10;
-        // Leer con LH (debe extender signo)
-        Address = 32'h00000010;
-        DMCtrl = 3'b001;  // LH
-        expected = 32'hFFFFFFFF;  // -1 extendido
-        #10 check_result("Test 7: LH signed extension", expected);
+        DataWr  = 32'h00008000;
+        DMWr    = 1'b1;
+        DMCtrl  = 3'b001;
         
-        // Test 8: Verificar escritura completa de palabra con múltiples bytes
-        $display("--- Test 8: Multiple byte writes forming a word ---");
-        Address = 32'h00000014;
-        DataWr = 32'h000000AA;
-        DMCtrl = 3'b110;  // SB
-        DMWr = 1;
-        #10;
-        Address = 32'h00000015;
-        DataWr = 32'h000000BB;
-        #10;
-        Address = 32'h00000016;
-        DataWr = 32'h000000CC;
-        #10;
-        Address = 32'h00000017;
-        DataWr = 32'h000000DD;
-        #10;
-        DMWr = 0;
-        #10;
-        // Leer palabra completa
-        Address = 32'h00000014;
-        DMCtrl = 3'b010;  // LW
-        expected = 32'hDDCCBBAA;  // Little-endian
-        #10 check_result("Test 8: LW after multiple SB", expected);
+        @(posedge clk);
+        #1;
+        
+        DMWr = 1'b0;
+        DMCtrl = 3'b001;
+        #1;
+        check_result("LH: Sign-extend 0x8000 to 0xFFFF8000", 32'hFFFF8000, DataRd);
+        
+        DMCtrl = 3'b101;
+        #1;
+        check_result("LHU: Zero-extend 0x8000 to 0x00008000", 32'h00008000, DataRd);
+        
+        @(posedge clk);
+        #1;
+        
+        // Halfword positivo (0x7FFF = 32767)
+        Address = 32'h00000012;
+        DataWr  = 32'h00007FFF;
+        DMWr    = 1'b1;
+        DMCtrl  = 3'b001;
+        
+        @(posedge clk);
+        #1;
+        
+        DMWr = 1'b0;
+        DMCtrl = 3'b001;
+        #1;
+        check_result("LH: Sign-extend 0x7FFF to 0x00007FFF", 32'h00007FFF, DataRd);
+        
+        @(posedge clk);
+        #1;
+        
+        // ==================== WRITE-READ SEQUENCE ====================
+        $display("\n--- WRITE-READ SEQUENCE ---\n");
+        
+        Address = 32'h00000020;
+        DataWr  = 32'h12345678;
+        DMWr    = 1'b1;
+        DMCtrl  = 3'b010;
+        
+        @(posedge clk);
+        #1;
+        
+        DMWr = 1'b0;
+        DMCtrl = 3'b010;
+        #1;
+        check_result("SW followed by LW: 0x12345678", 32'h12345678, DataRd);
+        
+        @(posedge clk);
+        #1;
+        
+        // ==================== MULTIPLE ADDRESSES ====================
+        $display("\n--- MULTIPLE ADDRESSES ---\n");
+        
+        // Escribir en múltiples direcciones
+        for (int i = 0; i < 4; i++) begin
+            Address = 32'h00000030 + (i * 4);
+            DataWr  = 32'h11110000 + (i * 32'h00001111);
+            DMWr    = 1'b1;
+            DMCtrl  = 3'b010;
+            
+            @(posedge clk);
+            #1;
+        end
+        
+        // Leer y verificar
+        for (int i = 0; i < 4; i++) begin
+            Address = 32'h00000030 + (i * 4);
+            DMWr = 1'b0;
+            DMCtrl = 3'b010;
+            #1;
+            check_result($sformatf("Read address 0x%h", Address), 
+                        32'h11110000 + (i * 32'h00001111), DataRd);
+            
+            @(posedge clk);
+            #1;
+        end
+        
+        // ==================== INVALID DMCTRL ====================
+        $display("\n--- INVALID DMCTRL ---\n");
+        
+        Address = 32'h00000000;
+        DMWr = 1'b0;
+        DMCtrl = 3'b111;
+        #1;
+        check_result("Invalid DMCtrl returns 0x00000000", 32'h00000000, DataRd);
+        
+        @(posedge clk);
+        #1;
+        
+        DMCtrl = 3'b011;
+        #1;
+        check_result("Invalid DMCtrl 0b011 returns 0x00000000", 32'h00000000, DataRd);
+        
+        @(posedge clk);
+        #1;
         
         // ==================== RESUMEN ====================
-        $display("========================================");
+        $display("\n========================================");
         $display("  TEST SUMMARY");
         $display("========================================");
         $display("Total tests: %0d", tests);
@@ -204,6 +340,7 @@ module DataMemory_tb;
         end
         $display("========================================\n");
         
+        #100;
         $finish;
     end
 
