@@ -1,0 +1,195 @@
+// CPU_top.sv
+// Top-level que conecta los módulos provistos por el usuario.
+// No realiza cálculos extra: solo cableado entre módulos existentes.
+
+module CPU_top(
+    input  logic clk,
+    input  logic reset   // opcional: si quieres reiniciar PC externamente
+);
+
+    // --------------------------
+    // Program Counter
+    // --------------------------
+    logic signed [31:0] pc;
+    logic signed [31:0] pc_next;
+    logic signed [31:0] pc_plus4;
+
+    // PC write enable (single-cycle simple = siempre 1)
+    logic PCWr = 1'b1;
+
+    ProgramCounter pc_unit (
+        .clk(clk),
+        .PCWr(PCWr),
+        .PCIn(pc_next),
+        .PCOut(pc)
+    );
+
+    // --------------------------
+    // Instruction Memory
+    // --------------------------
+    logic [31:0] instruction;
+    InstructionMemory instr_mem (
+        .address(pc),
+        .instruction(instruction)
+    );
+
+    // --------------------------
+    // Decode instruction fields
+    // --------------------------
+    wire [6:0] opcode;
+    wire [4:0] rd;
+    wire [2:0] funct3;
+    wire [4:0] rs1;
+    wire [4:0] rs2;
+    wire [6:0] funct7;
+
+    assign opcode = instruction[6:0];
+    assign rd     = instruction[11:7];
+    assign funct3 = instruction[14:12];
+    assign rs1    = instruction[19:15];
+    assign rs2    = instruction[24:20];
+    assign funct7 = instruction[31:25];
+
+    // --------------------------
+    // Control Unit
+    // --------------------------
+    logic        RUWr;
+    logic [1:0]  RUDataWrSrc;
+    logic        ALUASrc;
+    logic        ALUBSrc;
+    logic [3:0]  ALUOp;
+    logic        DMWr;
+    logic [2:0]  DMCtrl;
+    logic [2:0]  ImmSrc;
+    logic [4:0]  BrOp;
+
+    ControlUnit control (
+        .OpCode(opcode),
+        .Funct3(funct3),
+        .Funct7(funct7),
+        .RUWr(RUWr),
+        .RUDataWrSrc(RUDataWrSrc),
+        .ALUASrc(ALUASrc),
+        .ALUBSrc(ALUBSrc),
+        .ALUOp(ALUOp),
+        .DMWr(DMWr),
+        .DMCtrl(DMCtrl),
+        .ImmSrc(ImmSrc),
+        .BrOp(BrOp)
+    );
+
+    // --------------------------
+    // Immediate generator
+    // --------------------------
+    logic signed [31:0] Imm_ext;
+    ImmGenerator immgen (
+        .ImmSrc(ImmSrc),
+        .instruction(instruction),
+        .Imm_ext(Imm_ext)
+    );
+
+    // --------------------------
+    // Register file (RegistersUnit)
+    // --------------------------
+    logic signed [31:0] ru_rs1;
+    logic signed [31:0] ru_rs2;
+    logic signed [31:0] ru_writeback_data;
+
+    RegistersUnit registers_unit (
+        .clk(clk),
+        .rs1(rs1),
+        .rs2(rs2),
+        .rd(rd),
+        .DataWR(ru_writeback_data),
+        .RUWr(RUWr),
+        .ru_rs1(ru_rs1),
+        .ru_rs2(ru_rs2)
+    );
+
+    // --------------------------
+    // ALU input muxes
+    // --------------------------
+    logic signed [31:0] alu_a;
+    logic signed [31:0] alu_b;
+
+    ALUASrcMux alusrc_a_mux (
+        .ru_rs1(ru_rs1),
+        .pc(pc),
+        .sel(ALUASrc),
+        .a(alu_a)
+    );
+
+    ALUBSrcMux alub_src_mux (
+        .ru_rs2(ru_rs2),
+        .Imm_ext(Imm_ext),
+        .sel(ALUBSrc),
+        .b(alu_b)
+    );
+
+    // --------------------------
+    // ALU
+    // --------------------------
+    logic signed [31:0] ALURes;
+    ALU alu (
+        .A(alu_a),
+        .B(alu_b),
+        .ALUOp(ALUOp),
+        .ALURes(ALURes)
+    );
+
+    // --------------------------
+    // Branch unit: decide NextPCSrc
+    // --------------------------
+    logic NextPCSrc;
+    BranchUnit branch_unit (
+        .BrOp(BrOp),
+        .A(ru_rs1),
+        .B(ru_rs2),
+        .NextPCSrc(NextPCSrc)
+    );
+
+    // --------------------------
+    // Adder pc+4
+    // --------------------------
+    Adder adder_pc4 (
+        .pc_in(pc),
+        .pc_out(pc_plus4)
+    );
+
+    // --------------------------
+    // Next PC Mux (PC+4 or branch target)
+    // --------------------------
+    // branch_target conectado a ALURes (el ALU debe estar configurado para calcular pc+imm o rs1+imm según control)
+    NextPCMux nextpc_mux (
+        .pc_plus4(pc_plus4),
+        .branch_target(ALURes),
+        .sel(NextPCSrc),
+        .next_pc(pc_next)
+    );
+
+    // --------------------------
+    // Data Memory 
+    // --------------------------
+    logic signed [31:0] data_mem_rd;
+    DataMemory #(.ADDR_WIDTH(10)) data_mem (
+        .clk(clk),
+        .Address(ALURes),
+        .DataWr(ru_rs2),
+        .DMWr(DMWr),
+        .DMCtrl(DMCtrl),
+        .DataRd(data_mem_rd)
+    );
+
+    // --------------------------
+    // RU Writeback Mux (ALU / Mem / PC+4)
+    // --------------------------
+    RUDataWrSrcMux wr_mux (
+        .alu_result(ALURes),
+        .data_mem_rd(data_mem_rd),
+        .adder_result(pc_plus4),
+        .imm_ext(Imm_ext),
+        .sel(RUDataWrSrc),
+        .ru_wrdata(ru_writeback_data)
+    );
+
+endmodule
