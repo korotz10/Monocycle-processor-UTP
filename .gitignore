@@ -1,0 +1,26 @@
+# Temporary files of Quartus
+*.qpf
+*.qsf
+*.qws
+*.qdf
+*.sof
+*.pof
+*.jdi
+*.rpt
+*.summary
+*.chg
+*.tdb
+*.smsg
+*.fit.*
+*.flow.rpt
+*.done
+*.bak
+
+# Output files
+*.out
+*.vpp
+*.vcd
+
+
+
+
