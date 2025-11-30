@@ -7,7 +7,7 @@ module InstructionMemory (
 
     // Cargar programa en hex
     initial begin
-        $readmemh("program.hex", memory);
+        $readmemh("src/program.hex", memory);
     end
 
     // Direccion por palabras: PC >> 2

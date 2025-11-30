@@ -4,7 +4,7 @@
 
 module CPU_top(
     input  logic clk,
-    input  logic reset,   // opcional: si quieres reiniciar PC externamente
+    input  logic reset   // opcional: si quieres reiniciar PC externamente
 
     //Salidas
     output logic [31:0] debug_pc,
@@ -179,7 +179,7 @@ module CPU_top(
     // Data Memory 
     // --------------------------
     logic signed [31:0] data_mem_rd;
-    DataMemory #(.ADDR_WIDTH(8)) data_mem (
+    DataMemory #(.ADDR_WIDTH(10)) data_mem (
         .clk(clk),
         .Address(ALURes),
         .DataWr(ru_rs2),

@@ -1,8 +1,5 @@
-// DataMemory.sv - Optimizado manteniendo lectura combinacional
-// Usa arquitectura dual-port para inferir Block RAM
-
 module DataMemory #(
-    parameter ADDR_WIDTH = 8   // 256 palabras => 1 KB
+    parameter ADDR_WIDTH = 10   // 1024 palabras => 4 KB
 )(
     input  logic        clk,
     input  logic [31:0] Address,
@@ -12,15 +9,11 @@ module DataMemory #(
     output logic [31:0] DataRd
 );
 
-    // Forzar Block RAM con atributo
-    (* ram_style = "block" *) logic [31:0] mem [0:(1<<ADDR_WIDTH)-1];
+    // Memoria de 32 bits por palabra
+    logic [31:0] mem [0:(1<<ADDR_WIDTH)-1];
     
-    // Señal intermedia para lectura
+    // Palabra leída de memoria (auxiliar)
     logic [31:0] read_word;
-    logic [ADDR_WIDTH-1:0] read_addr;
-    
-    // Extraer dirección de palabra (ignorar bits bajos de byte offset)
-    assign read_addr = Address[ADDR_WIDTH+1:2];
 
     // Inicialización de memoria a 0
     initial begin
@@ -31,45 +24,46 @@ module DataMemory #(
     end
 
     // ============================================================
-    //    ESCRITURA SÍNCRONA (Store) - Puerto de escritura
+    //    ESCRITURA SÍNCRONA (Store) - al flanco positivo del clk
     // ============================================================
     always_ff @(posedge clk) begin
         if (DMWr) begin
             case (DMCtrl)
                 3'b000: begin  // SB - Store Byte
                     case (Address[1:0])
-                        2'b00: mem[read_addr][7:0]   <= DataWr[7:0];
-                        2'b01: mem[read_addr][15:8]  <= DataWr[7:0];
-                        2'b10: mem[read_addr][23:16] <= DataWr[7:0];
-                        2'b11: mem[read_addr][31:24] <= DataWr[7:0];
+                        2'b00: mem[Address[31:2]][7:0]   <= DataWr[7:0];
+                        2'b01: mem[Address[31:2]][15:8]  <= DataWr[7:0];
+                        2'b10: mem[Address[31:2]][23:16] <= DataWr[7:0];
+                        2'b11: mem[Address[31:2]][31:24] <= DataWr[7:0];
                     endcase
                 end
 
                 3'b001: begin  // SH - Store Halfword
                     case (Address[1])
-                        1'b0: mem[read_addr][15:0]  <= DataWr[15:0];
-                        1'b1: mem[read_addr][31:16] <= DataWr[15:0];
+                        1'b0: mem[Address[31:2]][15:0]  <= DataWr[15:0];
+                        1'b1: mem[Address[31:2]][31:16] <= DataWr[15:0];
                     endcase
                 end
 
                 3'b010: begin  // SW - Store Word
-                    mem[read_addr] <= DataWr;
+                    mem[Address[31:2]] <= DataWr;
                 end
 
                 default: begin
-                    // No hacer nada para códigos inválidos
+                    // Otros códigos no realizan escritura
                 end
             endcase
         end
     end
 
     // ============================================================
-    //    LECTURA COMBINACIONAL - Puerto de lectura
+    //    LECTURA COMBINACIONAL (Load) - para procesador monociclo
     // ============================================================
-    // Leer palabra completa (combinacional para monociclo)
-    assign read_word = mem[read_addr];
     
-    // Procesar según tipo de load
+    // Primero leemos la palabra completa
+    assign read_word = mem[Address[31:2]];
+    
+    // Luego procesamos según el tipo de load
     always_comb begin
         case (DMCtrl)
             3'b000: begin  // LB - Load Byte (con extensión de signo)
