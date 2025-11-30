@@ -10,6 +10,7 @@ The repository is organized into two main parts: the original CPU implementation
 - Seven-segment display output for visualizing CPU execution on hardware
 - Button-based step execution (manual clocking) with debouncing
 - Modular design: the CPU core remains untouched; the FPGA wrapper manages IO
+- The instruction are provided by with `program.hex` file.
 
 ## Repository Structure
 - `src/` — Source files for the CPU (SystemVerilog) and FPGA wrapper modules, pin assignments, and hardware-specific files (only in the `FPGA_Implementation` branch)  
